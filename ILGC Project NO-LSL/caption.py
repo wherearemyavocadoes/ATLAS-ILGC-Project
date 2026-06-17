@@ -33,7 +33,7 @@ class CaptionGenerator:
         self._last_caption = ""
         self._last_time = 0.0
 
-    def _format_distance(self, distance_cm):
+    def _format_distance(self, distance_cm): #Converting distance into a speak-able phrase
         """
         Convert distance in cm to a natural spoken phrase.
 
@@ -51,7 +51,7 @@ class CaptionGenerator:
             else:
                 return f"{meters:.1f} meters"
 
-    def _build_caption(self, label, confidence, distance_cm):
+    def _build_caption(self, label, confidence, distance_cm): #Using the speak-able terms from previous method, we add fully formed captions with urgency terms
         """
         Build a single caption string for one detection.
 
@@ -107,9 +107,9 @@ class CaptionGenerator:
             return None
 
         # Pick the best detection (already sorted by confidence in detector.py)
-        best = detections[0]
-        label = best['label']
-        confidence = best['confidence']
+        best = detections[0] #Taking the first detection (since it is already sorted by confidence in detector.py)
+        label = best['label']  #Labelling the detection
+        confidence = best['confidence'] #Checking confidence (0 to 1)
 
         # Build the caption
         caption = self._build_caption(label, confidence, distance_cm)
@@ -130,7 +130,7 @@ class CaptionGenerator:
 
         return caption
 
-    def _get_tier(self, distance_cm):
+    def _get_tier(self, distance_cm): #Checking the distance and grouping it into different tiers (close, medium, far)
         """Classify distance into a tier for cooldown grouping."""
         if distance_cm < self.very_close:
             return "very_close"
@@ -141,8 +141,8 @@ class CaptionGenerator:
         else:
             return "far"
 
-    def generate_proximity_warning(self, distance_cm):
-        """
+    def generate_proximity_warning(self, distance_cm): #Generating a distance based caption without the class/object name if it's unidentified
+        """ 
         Generate a distance-only warning when no specific object
         is detected but something is very close.
 

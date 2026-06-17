@@ -53,7 +53,7 @@ except ImportError:
     RPI_AVAILABLE = False
 
 
-def print_banner():
+def print_banner(): #Printing the startup info
     """Print startup banner."""
     print()
     print("=" * 55)
@@ -70,13 +70,14 @@ def print_banner():
     print()
 
 
-def main():
+def main(): #Main pipeline loop
     """Main pipeline loop."""
-    print_banner()
+    print_banner() #Printing the info
 
     # ── Initialize all components ──
-    print("[main] Initializing components...")
+    print("[main] Initializing components...") #Printing the message
 
+    #Creating all the objects defined in previously imported 7 modules
     cam = Camera()
     us = UltrasonicSensor()
     det = ObjectDetector()
@@ -85,15 +86,15 @@ def main():
     spk = Speaker()
     bz = Buzzer()
 
-    try:
+    try: #Try to load the detection model
         # Load the detection model (takes a few seconds)
-        det.load_model()
+        det.load_model() #Loading the model
 
         # Start hardware interfaces
-        cam.start()
-        us.start()
-        spk.start()
-        bz.start()
+        cam.start() #Starting the camera
+        us.start() #Starting the ultrasonic sensor
+        spk.start() #Starting the speaker
+        bz.start() #Starting the buzzer
 
         print()
         print("[main] All systems ready!")
@@ -106,42 +107,41 @@ def main():
         spk.speak("Navigation system ready")
 
         # ── Main loop ──
-        frame_count = 0
-        loop_start = time.time()
+        frame_count = 0 #Counting the number of frames
+        loop_start = time.time() #Recording the starting time of the main loop
 
-        while True:
-            iter_start = time.time()
+        while True: #Infinite loop for the main pipeline
+            iter_start = time.time() #Recording the starting time of the current iteration of the main loop
 
             # 1. Read ultrasonic distance and filter it
-            raw_dist = us.get_distance()
-            filtered_dist = kf.update(raw_dist)
-            velocity = kf.get_velocity()
+            raw_dist = us.get_distance() #Getting the raw distance from the ultrasonic sensor
+            filtered_dist = kf.update(raw_dist) #Filtering the distance using the Kalman filter
+            velocity = kf.get_velocity() #Getting the velocity from the Kalman filter
 
             # 2. Update buzzer with filtered distance
-            bz.update(filtered_dist)
+            bz.update(filtered_dist) #Updating the buzzer with the filtered distance
 
             # 3. Capture a camera frame
-            frame = cam.get_frame()
-            if frame is None:
+            frame = cam.get_frame() #Capturing a frame from the camera
+            if frame is None: #If the frame is empty, skip
                 time.sleep(0.01)
                 continue
 
             # 4. Run object detection
-            detections = det.detect(frame)
+            detections = det.detect(frame) #Running object detection
 
             # 5. Generate caption
-            caption_text = cap.generate(detections, filtered_dist)
+            caption_text = cap.generate(detections, filtered_dist) #Generating caption
 
-            # 5b. If no detection but something is close,
-            #     generate proximity-only warning
-            if caption_text is None and not detections:
+            # 5b. If no detection but something is close, generate proximity-only warning
+            if caption_text is None and not detections: #If no caption text is generated and no detections are made
                 caption_text = cap.generate_proximity_warning(
                     filtered_dist
                 )
 
             # 6. Print caption to console
-            if caption_text:
-                spk.speak(caption_text)
+            if caption_text: #If caption text is generated
+                spk.speak(caption_text) #Speaking the caption
 
             # 7. Display (optional, for debugging)
             if config.SHOW_DISPLAY:

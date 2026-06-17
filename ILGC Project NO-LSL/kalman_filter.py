@@ -24,41 +24,56 @@ class KalmanFilter1D:
     1D Kalman filter with constant-velocity motion model.
 
     Smooths noisy ultrasonic distance readings and provides
-    velocity estimates (useful for predicting collisions).
+    velocity estimates (useful for predicting collisions.
+
+    We are estimating the state x = [distance, velocity]
     """
 
+    '''
+    | Attribute                | Meaning                               |
+    | ------------------------ | ------------------------------------- |
+    | `self.x`                 | estimated distance + velocity         |
+    | `self.P`                 | uncertainty in estimate               |
+    | `self.R`                 | sensor noise (ultrasonic error)       |
+    | `self.q`                 | motion randomness                     |
+    | `self.H`                 | tells what we measure (distance only) |
+    | `self.outlier_threshold` | ignore crazy jumps                    |
+    | `self._last_time`        | used to compute dt                    |
+    | `self._initialized`      | first-time setup flag                 |
+    '''
+
     def __init__(self):
-        # State vector: [distance, velocity]
+        #State vector: [distance, velocity]
         self.x = np.array([
             config.KALMAN_INITIAL_ESTIMATE,  # initial distance (cm)
             0.0                               # initial velocity (cm/s)
-        ], dtype=np.float64)
+        ], dtype=np.float64) 
 
-        # Error covariance matrix
+        #Error covariance matrix
         self.P = np.array([
             [config.KALMAN_INITIAL_ERROR, 0.0],
             [0.0, config.KALMAN_INITIAL_ERROR]
         ], dtype=np.float64)
 
-        # Measurement noise (scalar — we only measure distance)
+        #Measurement noise (scalar — we only measure distance)
         self.R = config.KALMAN_MEASUREMENT_NOISE
 
-        # Process noise base (will be scaled by dt)
+        #Process noise base (will be scaled by dt)
         self.q = config.KALMAN_PROCESS_NOISE
 
-        # Measurement matrix: we observe distance only [1, 0]
+        #Measurement matrix: we observe distance only [1, 0]
         self.H = np.array([[1.0, 0.0]], dtype=np.float64)
 
-        # Outlier rejection threshold (cm)
+        #Outlier rejection threshold (cm)
         self.outlier_threshold = config.KALMAN_OUTLIER_THRESHOLD
 
-        # Time tracking
+        #Time tracking
         self._last_time = time.time()
 
-        # Track initialization
+        #Track initialization
         self._initialized = False
 
-    def predict(self, dt):
+    def predict(self, dt): #Two equations taking place in this method: i) x(t+dt) = F * x(t); ii) P(t+dt) = F * P(t) * F.T + Q
         """
         Prediction step: propagate state forward by dt seconds.
 
@@ -66,24 +81,24 @@ class KalmanFilter1D:
             distance_new = distance + velocity * dt
             velocity_new = velocity  (constant)
         """
-        # State transition matrix
+        #State transition matrix, A matrix in the prediction equation
         F = np.array([
             [1.0, dt],
             [0.0, 1.0]
         ], dtype=np.float64)
 
-        # Process noise covariance (increases with dt)
+        #Process noise covariance (increases with dt), Error term in the prediction equation
         q_dt = self.q * dt
         Q = np.array([
             [q_dt * dt * dt / 4.0, q_dt * dt / 2.0],
             [q_dt * dt / 2.0,      q_dt]
         ], dtype=np.float64)
 
-        # Predict state and covariance
-        self.x = F @ self.x
-        self.P = F @ self.P @ F.T + Q
+        #Predict state and covariance
+        self.x = F @ self.x #Getting the predicted state
+        self.P = F @ self.P @ F.T + Q #Predicted covariance
 
-    def update(self, measurement):
+    def update(self, measurement): #Two steps occur, first checking for outliers (if found, then continue predicting); ii) Updating the state and covariance
         """
         Full predict-update cycle with a new distance measurement.
 
@@ -97,33 +112,33 @@ class KalmanFilter1D:
         dt = now - self._last_time
         self._last_time = now
 
-        # Clamp dt to avoid huge jumps if the loop stalls
+        #Keeping the time difference between 0.001 to 1.0 (time between two consecutive measurements)
         dt = max(0.001, min(dt, 1.0))
 
-        # First measurement — initialize state directly
+        #First measurement, initialize state directly
         if not self._initialized:
             self.x[0] = measurement
             self.x[1] = 0.0
             self._initialized = True
             return measurement
 
-        # Outlier rejection: ignore readings that jump too far
-        # from the current estimate (likely sensor noise/multipath)
-        innovation = abs(measurement - self.x[0])
-        if innovation > self.outlier_threshold:
-            # Skip this measurement, just predict
+        #Outlier rejection: ignore readings that jump too far
+        #from the current estimate (likely sensor noise/multipath)
+        innovation = abs(measurement - self.x[0]) #Surprise term
+        if innovation > self.outlier_threshold: #Rejection of outliers
+            # Skipping the measurement, just predicting
             self.predict(dt)
             return max(0.0, self.x[0])
 
-        # ── Predict step ──
+        #Predict step
         self.predict(dt)
 
-        # ── Update step ──
-        # Innovation (measurement residual)
-        y = measurement - self.H @ self.x
+        #Update step
+        #Innovation (measurement residual)
+        y = measurement - self.H @ self.x #v = y(t) - H * x(t)
 
         # Innovation covariance
-        S = self.H @ self.P @ self.H.T + self.R
+        S = self.H @ self.P @ self.H.T + self.R #Error in predictions
 
         # Kalman gain
         K = self.P @ self.H.T / S

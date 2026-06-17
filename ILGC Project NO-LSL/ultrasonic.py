@@ -16,7 +16,7 @@ Run target: Raspberry Pi / Thonny
 import time
 import threading
 
-try:
+try: 
     import RPi.GPIO as GPIO
     RPI_AVAILABLE = True
 except ImportError:
@@ -49,48 +49,47 @@ class UltrasonicSensor:
         if RPI_AVAILABLE:
             self._setup_gpio()
 
+    #Defining a helper method, that sets up the pins in the GPIO (Broadcom GPIO Numbering)
     def _setup_gpio(self):
         """Configure GPIO pins for the sensor."""
-        GPIO.setmode(GPIO.BCM)
-        GPIO.setwarnings(False)
-        GPIO.setup(self.trig_pin, GPIO.OUT)
-        GPIO.setup(self.echo_pin, GPIO.IN)
-        GPIO.output(self.trig_pin, GPIO.LOW)
+        GPIO.setmode(GPIO.BCM) #setting up the mode to BCM
+        GPIO.setwarnings(False) #Hide GPIO warning messages
+        GPIO.setup(self.trig_pin, GPIO.OUT) #Setting up the Trigger Pin as Output
+        GPIO.setup(self.echo_pin, GPIO.IN) #Setting up the Echo Pin as Input
+        GPIO.output(self.trig_pin, GPIO.LOW) #Setting the Trigger Pin to Low
         # Let the sensor settle
-        time.sleep(0.1)
+        time.sleep(0.1) #Wait for 0.1 seconds after power up to stabilize
 
-    def _read_once(self):
+    def _read_once(self): #Method defined to get one single reading
         """
-        Take a single distance measurement.
+        Take a single distance measurement. 
 
         Returns distance in cm, or None if the reading timed out.
         """
-        if not RPI_AVAILABLE:
-            # Simulate a distance for testing on non-RPi machines
-            import random
-            return random.uniform(30, 200)
-
+        
         # Send 10µs trigger pulse
-        GPIO.output(self.trig_pin, GPIO.HIGH)
-        time.sleep(0.00001)  # 10 microseconds
-        GPIO.output(self.trig_pin, GPIO.LOW)
+        GPIO.output(self.trig_pin, GPIO.HIGH) #Sending signal -> High
+        time.sleep(0.00001)  # 10 microseconds trigger pulse
+        GPIO.output(self.trig_pin, GPIO.LOW) #Sending signal -> Low
 
         # Wait for echo to go HIGH (pulse sent)
         pulse_start = time.time()
         deadline = pulse_start + self.timeout
 
-        while GPIO.input(self.echo_pin) == GPIO.LOW:
-            pulse_start = time.time()
-            if pulse_start > deadline:
-                return None  # Timeout — no echo received
+        #Keep looping while ECHO stays LOW
+        while GPIO.input(self.echo_pin) == GPIO.LOW: #Waiting for the echo pin to go HIGH (means pulse was sent)
+            pulse_start = time.time() #Setting up the current time
+            if pulse_start > deadline: #If current time exceeded the deadline (means no echo was received)
+                return None
 
         # Wait for echo to go LOW (pulse returned)
-        pulse_end = time.time()
+        pulse_end = time.time() #Setting up the end time
         deadline = pulse_end + self.timeout
 
-        while GPIO.input(self.echo_pin) == GPIO.HIGH:
-            pulse_end = time.time()
-            if pulse_end > deadline:
+        #Keep looping while ECHO stays HIGH
+        while GPIO.input(self.echo_pin) == GPIO.HIGH:  #Waiting for the echo pin to go LOW (means pulse was returned)
+            pulse_end = time.time() #Setting up the end time
+            if pulse_end > deadline: #If echo received after longer than deadline, object is too far
                 return None  # Timeout — object too far
 
         # Calculate distance
@@ -98,36 +97,36 @@ class UltrasonicSensor:
         pulse_duration = pulse_end - pulse_start
         distance = (pulse_duration * 34300.0) / 2.0
 
-        # Clamp to sensor range
+        #Rejecting outlier readings
         if distance < 2.0 or distance > self.max_distance:
             return None
 
         return round(distance, 1)
 
-    def _background_loop(self):
+    def _background_loop(self): #Starting an infinite loop that runs in the background
         """Continuously read distance in the background."""
-        while self._running:
-            reading = self._read_once()
+        while self._running: #Running this loop after start method has been executed that set _running to True
+            reading = self._read_once() #Taking one single reading
             if reading is not None:
-                with self._lock:
-                    self._distance = reading
-            time.sleep(self.read_interval)
+                with self._lock: #using thread lock to make sure self._distanc eis being used only once at a time
+                    self._distance = reading #Assigning the distance attribute the reading value
+            time.sleep(self.read_interval) #Pausing for defined interval 0.05 seconds
 
-    def start(self):
+    def start(self): #Defining the start function
         """Start the background reading thread."""
-        if self._running:
-            return
-        self._running = True
-        self._thread = threading.Thread(target=self._background_loop, daemon=True)
-        self._thread.start()
-        print(f"[ultrasonic] Started — TRIG={self.trig_pin}, ECHO={self.echo_pin}")
+        if self._running: #Checking if the thread is already running
+            return #Stop the thread from starting again
+        self._running = True #Setting the running attribute to True
+        self._thread = threading.Thread(target=self._background_loop, daemon=True) #Creating a new thread
+        self._thread.start() #Starting the thread; So here while the start method is being executed, the _background_loop method is also beginning to execute simultaneously
+        print(f"[ultrasonic] Started — TRIG={self.trig_pin}, ECHO={self.echo_pin}") #Printing the trigger and echo pin numbers
 
-    def stop(self):
+    def stop(self): #Defining the stop function
         """Stop the background reading thread."""
-        self._running = False
-        if self._thread:
-            self._thread.join(timeout=2.0)
-        print("[ultrasonic] Stopped")
+        self._running = False #Setting the running attribute to False
+        if self._thread: #Checking if the thread is not None
+            self._thread.join(timeout=2.0) #Joining the thread -> waiting for the thread to finish but max 2 seconds
+        print("[ultrasonic] Stopped") #Printing the stop message
 
     def get_distance(self):
         """
@@ -136,10 +135,10 @@ class UltrasonicSensor:
         Returns:
             float: Distance in cm (2.0 – 400.0).
         """
-        with self._lock:
+        with self._lock: #Getting the distance but with thread lock to avoid spill
             return self._distance
 
-    def cleanup(self):
+    def cleanup(self): #Defining a cleanup function to stop the background thread and clean up GPIO
         """Stop reading and clean up GPIO."""
         self.stop()
         # Note: GPIO.cleanup() is called once in main.py to avoid conflicts

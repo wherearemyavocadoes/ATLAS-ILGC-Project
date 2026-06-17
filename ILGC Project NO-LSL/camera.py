@@ -31,50 +31,52 @@ class Camera:
 
     def start(self):
         """Open the webcam."""
-        self.cap = cv2.VideoCapture(self.index)
+        self.cap = cv2.VideoCapture(self.index) #Opening the camera using VideoCapture function
 
-        if not self.cap.isOpened():
+        if not self.cap.isOpened(): #If not camera not opened, then we throw an error from our end that camera is not connected
             raise RuntimeError(
                 f"[camera] Cannot open camera at index {self.index}. "
                 "Check that the webcam is connected and /dev/video0 exists."
             )
 
-        # Set resolution and FPS
+        #Setting pre-defined resolution and FPS using the capture attribute created in __init__
         self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, self.width)
         self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self.height)
         self.cap.set(cv2.CAP_PROP_FPS, self.fps)
 
-        # Read actual values (camera may not support requested)
+        #Reading actual values (camera may not support requested values, so we run a check here what parameters can camera actually support)
         actual_w = int(self.cap.get(cv2.CAP_PROP_FRAME_WIDTH))
         actual_h = int(self.cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
         actual_fps = self.cap.get(cv2.CAP_PROP_FPS)
 
+        #Printing camera opening message and final selected parameters
         print(f"[camera] Opened camera {self.index}: "
               f"{actual_w}x{actual_h} @ {actual_fps:.0f} FPS")
 
-    def get_frame(self):
+    #Capturing a single frame from the webcam (in the form of a numpy array of BGR image)
+    def get_frame(self): 
         """
         Capture a single frame from the webcam.
 
         Returns:
             numpy.ndarray: BGR image, or None if capture failed.
         """
-        if self.cap is None or not self.cap.isOpened():
+        if self.cap is None or not self.cap.isOpened(): #If not detected/opened camera
             return None
 
-        ret, frame = self.cap.read()
+        ret, frame = self.cap.read() #Two variable, one store binary True/False if captured or not, other one stores the image captured
         if not ret:
             return None
 
         return frame
 
-    def stop(self):
+    def stop(self): #Releasing the camera once our task is done
         """Release the webcam."""
         if self.cap and self.cap.isOpened():
             self.cap.release()
             print("[camera] Released")
 
-    def is_opened(self):
+    def is_opened(self): #Checking if the camera is opened
         """Check if the camera is currently open."""
         return self.cap is not None and self.cap.isOpened()
 
